@@ -450,7 +450,7 @@ def main():
     card_data = {}
     array_len = pm.read_int32(entries_ptr + 0x18)
     
-    stride = 24 # Padding for Mono 64-bit
+    stride = 16 # Dictionary<int, int> Entry size is 16 bytes (4 ints)
     
     for i in range(array_len):
         base = entries_ptr + 0x20 + (i * stride)
@@ -473,6 +473,7 @@ def main():
     output_lines = []
     total = len(card_data)
     count = 0
+    unknown_count = 0
     
     # Sort by ID for consistent output
     sorted_cards = sorted(card_data.items())
@@ -489,6 +490,13 @@ def main():
                     with urllib.request.urlopen(req, timeout=5) as response:
                         data = json.loads(response.read().decode())
                         name = data['name']
+                        type_line = data.get('type_line', '')
+                        
+                        if 'Basic' in type_line:
+                            print(f"[{count}/{total}] Skipping Basic Land: {name}")
+                            found = True
+                            break
+                        
                         output_lines.append(f"{owned} {name}")
                         print(f"[{count}/{total}] {name}")
                         found = True
@@ -499,7 +507,7 @@ def main():
                         continue
                     elif e.code == 404:
                         print(f"[{count}/{total}] Card {grp_id} not found.")
-                        output_lines.append(f"// {owned} UnknownCard_{grp_id}")
+                        unknown_count += 1
                         found = True
                         break
                     else:
@@ -516,6 +524,10 @@ def main():
             
         except Exception as e:
             print(f"Failed to process {grp_id}: {e}")
+
+    if unknown_count > 0:
+        output_lines.append(f"// Total Unknown Cards: {unknown_count}")
+        print(f"Total Unknown Cards: {unknown_count}")
 
     filename = f"mtg_collection_{time.strftime('%Y%m%d')}.txt"
     with open(filename, 'w', encoding='utf-8') as f:
